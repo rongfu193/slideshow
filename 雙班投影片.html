@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>雙班畢業進場播放器 (16:9)</title>
+  
+  <!-- 載入 Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- 載入 React 與 ReactDOM -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <!-- 載入 Babel 編譯器 -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- 載入 FontAwesome 圖示庫 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- 載入 html2canvas -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+  <style>
+    @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+    .animate-in { animation: fade-in 0.3s ease-out; }
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #475569; }
+  </style>
+</head>
+<body class="bg-slate-900">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useCallback, useMemo } = React;
+
+    const Icon = ({ name, size = 24, className = '' }) => {
+      const iconMap = {
+        Play: 'fa-play', Pause: 'fa-pause', RotateCcw: 'fa-rotate-left', Settings: 'fa-gear',
+        Camera: 'fa-camera', GraduationCap: 'fa-graduation-cap', Heart: 'fa-heart',
+        Star: 'fa-star', Sparkles: 'fa-wand-magic-sparkles', UploadCloud: 'fa-cloud-arrow-up',
+        ChevronRight: 'fa-chevron-right', Flower: 'fa-spa', Sun: 'fa-sun',
+        Maximize: 'fa-expand', Download: 'fa-download', X: 'fa-xmark', Info: 'fa-circle-info',
+        Images: 'fa-images',
+        // 新增的可愛圖示
+        Leaf: 'fa-leaf', Cloud: 'fa-cloud', Moon: 'fa-moon', Music: 'fa-music',
+        Crown: 'fa-crown', Gem: 'fa-gem', Bolt: 'fa-bolt', PaperPlane: 'fa-paper-plane',
+        Clover: 'fa-clover', Bell: 'fa-bell'
+      };
+      return <i className={`fa-solid ${iconMap[name]} ${className}`} style={{ fontSize: size }}></i>;
+    };
+
+    const THEMES = [
+      { id: 'pink', name: '櫻花粉', bg: '#fdf2f8', textMain: 'text-pink-950', textSub: 'text-pink-600', deco: 'bg-pink-500', wishBg: 'bg-pink-100/60 border-pink-200', wishText: 'text-pink-500' },
+      { id: 'blue', name: '天空藍', bg: '#f0f9ff', textMain: 'text-sky-950', textSub: 'text-sky-600', deco: 'bg-sky-500', wishBg: 'bg-pink-100/60 border-pink-200', wishText: 'text-pink-500' }, // 注意：此處 wishBg 似乎仍指向 pink，保留原樣以防破壞樣式
+      { id: 'yellow', name: '暖陽黃', bg: '#fffbeb', textMain: 'text-amber-950', textSub: 'text-amber-600', deco: 'bg-amber-500', wishBg: 'bg-amber-100/60 border-amber-200', wishText: 'text-amber-600' },
+      { id: 'green', name: '薄荷綠', bg: '#f0fdf4', textMain: 'text-emerald-950', textSub: 'text-emerald-600', deco: 'bg-emerald-500', wishBg: 'bg-emerald-100/60 border-emerald-200', wishText: 'text-emerald-600' },
+      { id: 'purple', name: '薰衣紫', bg: '#faf5ff', textMain: 'text-purple-950', textSub: 'text-purple-600', deco: 'bg-purple-500', wishBg: 'bg-purple-100/60 border-purple-200', wishText: 'text-purple-600' },
+      { id: 'orange', name: '活力橘', bg: '#fff7ed', textMain: 'text-orange-950', textSub: 'text-orange-600', deco: 'bg-orange-500', wishBg: 'bg-orange-100/60 border-orange-200', wishText: 'text-orange-600' },
+      { id: 'teal', name: '珊瑚藍', bg: '#f0fdfa', textMain: 'text-teal-950', textSub: 'text-teal-600', deco: 'bg-teal-500', wishBg: 'bg-teal-100/60 border-teal-200', wishText: 'text-teal-600' },
+      { id: 'rose', name: '玫瑰紅', bg: '#fff1f2', textMain: 'text-rose-950', textSub: 'text-rose-600', deco: 'bg-rose-500', wishBg: 'bg-rose-100/60 border-rose-200', wishText: 'text-rose-600' },
+      { id: 'gray', name: '質感灰', bg: '#f8fafc', textMain: 'text-slate-900', textSub: 'text-slate-600', deco: 'bg-slate-500', wishBg: 'bg-slate-100/60 border-slate-200', wishText: 'text-slate-600' }
+    ];
+
+    const WISHES = [
+      "鵬程萬里", "前程似錦", "夢想起飛", "友誼長存", 
+      "不忘初心", "勇往直前", "展翅高飛", "畢業快樂", 
+      "珍重再見", "未來可期", "百尺竿頭", "星光璀璨",
+      "青春無悔", "乘風破浪", "莫逆之交", "情同手足",
+      "同窗情深", "後會有期", "一帆風順", "步步高升",
+      "錦繡前程", "大展鴻圖", "情深似海", "歲月如歌"
+    ];
+
+    const App = () => {
+      const STICKERS = useMemo(() => [
+        <Icon name="Heart" className="text-pink-400" size={50} />,
+        <Icon name="Star" className="text-yellow-400" size={50} />,
+        <Icon name="Sparkles" className="text-blue-400" size={50} />,
+        <Icon name="Flower" className="text-orange-400" size={50} />,
+        <Icon name="Sun" className="text-yellow-500" size={50} />,
+        <Icon name="GraduationCap" className="text-indigo-400" size={60} />,
+        // 新增的圖示樣式與顏色
+        <Icon name="Leaf" className="text-emerald-400" size={45} />,
+        <Icon name="Cloud" className="text-sky-300" size={50} />,
+        <Icon name="Moon" className="text-yellow-300" size={45} />,
+        <Icon name="Music" className="text-purple-400" size={40} />,
+        <Icon name="Crown" className="text-yellow-500" size={50} />,
+        <Icon name="Gem" className="text-cyan-400" size={45} />,
+        <Icon name="Bolt" className="text-amber-400" size={45} />,
+        <Icon name="PaperPlane" className="text-blue-400" size={45} />,
+        <Icon name="Clover" className="text-green-500" size={45} />,
+        <Icon name="Bell" className="text-orange-400" size={45} />
+      ], []);
+
+      // 將資料結構擴充為陣列，支援兩個班級
+      const [classesData, setClassesData] = useState(() => {
+        // 隨機產生兩個不重複的佈景主題索引
+        const idx1 = Math.floor(Math.random() * THEMES.length);
+        let idx2 = Math.floor(Math.random() * THEMES.length);
+        while (idx2 === idx1) {
+          idx2 = Math.floor(Math.random() * THEMES.length);
+        }
+        
+        return [
+          {
+            id: 'class1', label: '左側班級', className: '601',
+            teacher: { name: '601導師', image: null }, students: [], theme: THEMES[idx1]
+          },
+          {
+            id: 'class2', label: '右側班級', className: '602',
+            teacher: { name: '602導師', image: null }, students: [], theme: THEMES[idx2]
+          }
+        ];
+      });
+
+      const [isStarted, setIsStarted] = useState(false);
+      const [currentSlide, setCurrentSlide] = useState(0);
+      const [isPlaying, setIsPlaying] = useState(false);
+      const [slides, setSlides] = useState([]); // 格式: [{ left: {...}, right: {...} }, ...]
+      
+      const [isInternalFullScreen, setIsInternalFullScreen] = useState(false);
+      const [showDownloadModal, setShowDownloadModal] = useState(false);
+
+      const SLIDE_DURATION = 5000;
+
+      const updateClassData = (index, field, value) => {
+        setClassesData(prev => {
+          const newData = [...prev];
+          newData[index] = { ...newData[index], [field]: value };
+          return newData;
+        });
+      };
+
+      const handleTeacherChange = (index, field, value) => {
+        setClassesData(prev => {
+          const newData = [...prev];
+          newData[index].teacher = { ...newData[index].teacher, [field]: value };
+          return newData;
+        });
+      };
+
+      const handleBatchUpload = (e, index) => {
+        const files = Array.from(e.target.files);
+        if (files.length === 0) return;
+
+        files.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+
+        const newStudents = files.map((file, sIndex) => ({
+          id: `std-${Date.now()}-${sIndex}`,
+          fileName: file.name,
+          image: URL.createObjectURL(file)
+        }));
+
+        setClassesData(prev => {
+          const newData = [...prev];
+          newData[index].students = [...newData[index].students, ...newStudents];
+          return newData;
+        });
+        e.target.value = '';
+      };
+
+      // 增加 isCover 參數，如果是首頁就放多一點裝飾
+      const generateRandomDeco = useCallback((isCover = false) => {
+        // 擴充更多座標與大小變化的隨機位置池
+        const positions = [
+          'top-[6%] left-[6%] rotate-12 scale-110',
+          'top-[8%] right-[6%] -rotate-12 scale-90',
+          'bottom-[8%] left-[6%] -rotate-6 scale-125',
+          'bottom-[6%] right-[6%] rotate-12 scale-100',
+          'top-[45%] left-[2%] rotate-45 scale-75',
+          'top-[55%] right-[3%] -rotate-12 scale-110',
+          'top-[2%] left-[40%] rotate-6 scale-90',
+          'bottom-[2%] right-[40%] -rotate-6 scale-100',
+        ];
+
+        // 若是封面頁，隨機決定產生 5 到 8 個圖示；一般頁面則是 3 到 5 個
+        const count = isCover ? Math.floor(Math.random() * 4) + 5 : Math.floor(Math.random() * 3) + 3;
+
+        return positions
+          .sort(() => Math.random() - 0.5)
+          .slice(0, count)
+          .map(pos => ({
+            pos,
+            iconIndex: Math.floor(Math.random() * STICKERS.length)
+          }));
+      }, [STICKERS.length]);
+
+      const generateClassSlides = (classData, targetPages = null) => {
+        let studentList = [...classData.students];
+        const newSlides = [];
+        const hasData = classData.students.length > 0;
+
+        // 若該班級有學生照片，才加入導師封面頁與學生照片頁
+        if (hasData) {
+          // 補回 decorations，並傳入 true 標示為封面頁
+          newSlides.push({ type: 'teacher', teacher: classData.teacher, className: classData.className, hasData, decorations: generateRandomDeco(true) });
+
+          // 依序每頁放4張，不足的地方保持空白
+          while (studentList.length > 0) {
+            const chunk = studentList.splice(0, 4);
+
+            newSlides.push({
+              type: 'students', className: classData.className, count: 4,
+              items: chunk, decorations: generateRandomDeco(false), hasData
+            });
+          }
+        }
+
+        // 補齊到目標頁數 (確保兩班進度一致，若都沒照片則全補空白待機頁)
+        const targetLen = targetPages || 0; 
+        
+        // 複製並打亂全域的 24 句 WISHES 陣列，確保連續出現時不會重複
+        const shuffledWishes = [...WISHES].sort(() => Math.random() - 0.5);
+        let blankCount = 0;
+
+        while (newSlides.length < targetLen) {
+          // 依序從打亂的陣列中取出祝福語，保證一輪內不重複
+          const randomWish = shuffledWishes[blankCount % shuffledWishes.length];
+          newSlides.push({ type: 'blank', className: classData.className, hasData, wishText: randomWish });
+          blankCount++;
+        }
+        return newSlides;
+      };
+
+      const handleStart = () => {
+        if (classesData[0].students.length === 0 && classesData[1].students.length === 0) {
+          alert("請至少為一個班級上傳學生照片！");
+          return;
+        }
+
+        const tempSlides1 = generateClassSlides(classesData[0], null);
+        const tempSlides2 = generateClassSlides(classesData[1], null);
+        
+        // 不再強制9頁，取兩班最長頁數來同步
+        const maxPages = Math.max(tempSlides1.length, tempSlides2.length); 
+
+        const slides1 = generateClassSlides(classesData[0], maxPages);
+        const slides2 = generateClassSlides(classesData[1], maxPages);
+
+        const combined = [];
+        for (let i = 0; i < maxPages; i++) {
+          combined.push({ left: slides1[i], right: slides2[i] });
+        }
+        
+        setSlides(combined);
+        setIsStarted(true);
+        setIsPlaying(true);
+        setCurrentSlide(0);
+      };
+
+      useEffect(() => {
+        let timer;
+        if (isPlaying && isStarted) {
+          timer = setInterval(() => {
+            setCurrentSlide(prev => {
+              if (prev >= slides.length - 1) {
+                setIsPlaying(false);
+                return prev;
+              }
+              return prev + 1;
+            });
+          }, SLIDE_DURATION);
+        }
+        return () => clearInterval(timer);
+      }, [isPlaying, isStarted, slides.length]);
+
+      const handleDownloadAllJPGs = async () => {
+        if (typeof window.html2canvas === 'undefined') {
+          alert('載入截圖套件失敗，請確認您的網路連線。'); return;
+        }
+
+        setIsPlaying(false);
+        const container = document.getElementById('export-container');
+        if (!container) return;
+
+        const style = document.createElement('style');
+        style.innerHTML = '* { transition: none !important; animation: none !important; }';
+        document.head.appendChild(style);
+
+        alert(`即將為您匯出 ${slides.length} 張 16:9 JPG 圖檔。\n請注意：瀏覽器可能會詢問是否允許「下載多個檔案」，請點選「允許」。`);
+
+        const originalSlide = currentSlide;
+        const fileNamePrefix = `${classesData[0].className}與${classesData[1].className}`;
+
+        try {
+          for (let i = 0; i < slides.length; i++) {
+            setCurrentSlide(i);
+            await new Promise(r => setTimeout(r, 400)); // 增加一點渲染等待時間
+
+            const canvas = await window.html2canvas(container, {
+                scale: 2, useCORS: true, logging: false, backgroundColor: '#000000'
+            });
+            
+            const link = document.createElement('a');
+            link.download = `${fileNamePrefix}-投影片-${String(i + 1).padStart(2, '0')}.jpg`;
+            link.href = canvas.toDataURL('image/jpeg', 0.9);
+            link.click();
+          }
+          alert('匯出完成！所有圖檔已儲存至您的下載資料夾。');
+        } catch (err) {
+          console.error('截圖失敗:', err);
+          alert('截圖過程中發生錯誤。');
+        } finally {
+          document.head.removeChild(style);
+          setCurrentSlide(originalSlide);
+        }
+      };
+
+      // 渲染單一班級的 8:9 半面投影片
+      // 加入 overflow-hidden 防止大型浮水印超出半邊畫面
+      const renderHalfSlide = (slideData, theme, idx, side = 'left') => (
+        <div className="w-full h-full flex flex-col relative overflow-hidden">
+          {/* 加大上方班級名稱跟上邊界的距離。若該班沒有上傳照片(hasData為false)，則隱藏班級名稱 */}
+          <div className="h-[13%] shrink-0 flex flex-col items-center justify-end pb-2 relative z-20">
+             {slideData.hasData && (
+               <>
+                 <h2 className={`text-xl sm:text-2xl lg:text-3xl font-black ${theme.textMain} tracking-[0.2em]`}>{slideData.className}</h2>
+                 <div className={`w-12 lg:w-16 h-1 lg:h-1.5 ${theme.deco} mt-1 lg:mt-2 rounded-full`}></div>
+               </>
+             )}
+          </div>
+
+          {slideData.decorations?.map((deco, dIdx) => (
+            <div key={dIdx} className={`absolute ${deco.pos} opacity-30 pointer-events-none z-0`}>
+              {STICKERS[deco.iconIndex]}
+            </div>
+          ))}
+
+          {/* 減少上下 padding 讓照片有更多空間擴充 */}
+          <div className="flex-1 px-3 sm:px-6 lg:px-8 pb-1 pt-0 flex flex-col relative z-10 min-h-0">
+            {slideData.type === 'teacher' ? (
+              <div className="h-full flex flex-col items-center justify-center min-h-0 relative">
+                <div className={`h-[85%] lg:h-[86%] aspect-[2/3] bg-slate-100 rounded-2xl lg:rounded-3xl shadow-xl border-[6px] lg:border-[8px] border-white overflow-hidden transform ${side === 'right' ? 'rotate-2' : '-rotate-2'} shrink-0 min-h-0 flex items-center justify-center relative z-10`}>
+                  {slideData.teacher?.image ? <img src={slideData.teacher.image} className="w-full h-full object-contain" /> : <Icon name="Camera" size={56} className="text-slate-300"/>}
+                </div>
+                {/* 移除白色背景與陰影，僅保留純文字 */}
+                <div className="text-center shrink-0 mt-3 lg:mt-4 relative z-20">
+                  <span className={`inline-block ${theme.textSub} font-black text-xl lg:text-3xl tracking-wide relative z-30`}>
+                    {slideData.teacher?.name} 老師
+                  </span>
+                </div>
+              </div>
+            ) : slideData.type === 'students' ? (
+              <div className="h-full w-full grid grid-cols-2 grid-rows-2 gap-2 lg:gap-3 min-h-0">
+                  {/* 縮小照片的上下左右間距 */}
+                  {(() => {
+                      return Array.from({ length: 4 }).map((_, cellIdx) => {
+                          const student = slideData.items[cellIdx];
+                          
+                          if (!student) {
+                              // 保持空白，不渲染任何方框或圖示
+                              return (
+                                  <div key={cellIdx} className="w-full h-full flex items-center justify-center min-h-0">
+                                  </div>
+                              );
+                          } else {
+                              return (
+                                  <div key={cellIdx} className="w-full h-full flex items-center justify-center min-h-0">
+                                      <div className="bg-slate-50 rounded-2xl lg:rounded-3xl shadow-sm border-4 lg:border-8 border-white overflow-hidden relative min-h-0 flex items-center justify-center h-full aspect-[2/3]">
+                                          <img src={student.image} className="w-full h-full object-contain" />
+                                      </div>
+                                  </div>
+                              );
+                          }
+                      });
+                  })()}
+              </div>
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center text-center min-h-0">
+                <Icon name="GraduationCap" size={100} className={`${theme.textMain} opacity-10 mb-6 shrink-0`} />
+                <p className={`text-2xl lg:text-4xl font-black ${theme.textMain} opacity-40`}>{slideData.wishText || '畢業快樂'}</p>
+              </div>
+            )}
+          </div>
+
+          {/* 底部留白，已移除英文字與頁數 */}
+          <div className="h-[3%] shrink-0"></div>
+        </div>
+      );
+
+      return (
+        <div className="min-h-screen text-white flex flex-col items-center justify-center p-4 py-10 relative overflow-y-auto overflow-x-hidden" style={{ minHeight: '100vh' }}>
+          
+          {!isStarted ? (
+            <div className="w-full max-w-6xl space-y-8 animate-in">
+              <div className="text-center pb-2">
+                <h1 className="text-3xl md:text-4xl font-black text-white drop-shadow-md tracking-wider">雙班級畢業進場產生器</h1>
+                <p className="text-slate-400 mt-3 text-sm md:text-base font-bold">分別上傳兩班資料，系統將自動拼接為 <span className="text-indigo-400 px-2 py-0.5 bg-indigo-900/50 rounded-md">16:9 寬螢幕</span> 播放比例</p>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
+                {classesData.map((cData, index) => (
+                  <div key={cData.id} className="bg-white text-slate-800 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6 relative overflow-hidden">
+                    {/* 背景裝飾 */}
+                    <div className="absolute -top-10 -right-10 opacity-5 pointer-events-none transform rotate-12">
+                      <Icon name="GraduationCap" size={150} />
+                    </div>
+
+                    <div className="border-b border-slate-100 pb-4 flex items-center justify-between relative z-10">
+                      <h2 className="text-2xl font-black text-indigo-900 flex items-center gap-2">
+                         <div className={`w-3 h-8 rounded-full ${cData.theme.deco}`}></div>
+                         {cData.label}
+                      </h2>
+                      <span className="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-full border border-slate-200">
+                        {index === 0 ? '左側版面 (8:9)' : '右側版面 (8:9)'}
+                      </span>
+                    </div>
+
+                    <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-5 relative z-10">
+                      <div>
+                        <label className="block text-sm font-bold text-slate-600 mb-3">版面主題色彩</label>
+                        <div className="flex flex-wrap gap-3">
+                          {THEMES.map(t => (
+                            <button
+                              key={t.id}
+                              onClick={() => updateClassData(index, 'theme', t)}
+                              className={`w-10 h-10 rounded-full border-2 transition-transform ${cData.theme.id === t.id ? 'scale-110 border-slate-400 shadow-md ring-2 ring-offset-2 ring-indigo-500' : 'border-slate-200 shadow-sm hover:scale-105'}`}
+                              style={{ backgroundColor: t.bg }}
+                              title={t.name}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 relative z-10">
+                      <div className="space-y-4">
+                        <label className="block">
+                          <span className="text-sm font-bold text-slate-600 ml-1">班級名稱</span>
+                          <input type="text" value={cData.className} onChange={e => updateClassData(index, 'className', e.target.value)} className="w-full p-3.5 mt-1.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-indigo-400 transition-all font-bold text-slate-800" />
+                        </label>
+                        <label className="block">
+                          <span className="text-sm font-bold text-slate-600 ml-1">導師姓名</span>
+                          <input type="text" value={cData.teacher.name} onChange={e => handleTeacherChange(index, 'name', e.target.value)} className="w-full p-3.5 mt-1.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-indigo-400 transition-all font-bold text-slate-800" />
+                        </label>
+                      </div>
+                      <div className="relative group border-2 border-dashed border-slate-300 hover:border-indigo-400 rounded-2xl bg-slate-50 transition-colors flex items-center justify-center overflow-hidden h-full min-h-[160px]">
+                        {cData.teacher.image ? (
+                          <img src={cData.teacher.image} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="text-center text-slate-400 group-hover:text-indigo-500 transition-colors">
+                            <Icon name="Camera" size={36} className="mx-auto mb-3"/>
+                            <span className="text-sm font-bold">上傳導師照片</span>
+                          </div>
+                        )}
+                        <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" accept="image/*" onChange={e => {
+                          const file = e.target.files[0];
+                          if(file) handleTeacherChange(index, 'image', URL.createObjectURL(file));
+                        }} />
+                      </div>
+                    </div>
+
+                    <div className="bg-indigo-50/70 border border-indigo-100 rounded-2xl p-6 text-center relative z-10 transition-all hover:bg-indigo-50">
+                      <Icon name="UploadCloud" size={42} className="text-indigo-400 mb-3 block mx-auto" />
+                      <label className="bg-indigo-600 text-white px-8 py-3 rounded-full font-bold cursor-pointer hover:bg-indigo-700 hover:shadow-lg hover:-translate-y-0.5 transition-all inline-block shadow-md">
+                        批次上傳學生照片
+                        <input type="file" className="hidden" accept="image/*" multiple onChange={e => handleBatchUpload(e, index)} />
+                      </label>
+                      <div className="mt-3 min-h-[20px]">
+                        {cData.students.length > 0 ? (
+                           <p className="text-sm text-indigo-700 font-bold bg-white inline-block px-4 py-1 rounded-full shadow-sm">已載入 {cData.students.length} 位學生</p>
+                        ) : (
+                           <p className="text-xs text-slate-400 font-bold">可一次選取多張相片</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex justify-center pt-4">
+                <button onClick={handleStart} className="w-full max-w-md bg-white text-slate-900 py-4 md:py-5 rounded-2xl font-black text-xl flex items-center justify-center gap-3 hover:bg-indigo-50 hover:scale-[1.02] transition-all shadow-[0_0_40px_rgba(255,255,255,0.1)] hover:shadow-[0_0_50px_rgba(255,255,255,0.2)]">
+                  生成 16:9 播放預覽 <Icon name="ChevronRight" size={20} />
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-6 w-full h-full relative z-10 my-auto">
+              
+              <div className="flex items-center gap-3 bg-slate-800/90 p-3 rounded-full border border-slate-700 shadow-xl z-50">
+                <button onClick={() => setIsStarted(false)} className="p-2 text-slate-400 hover:text-white transition-colors" title="回到設定"><Icon name="Settings" size={20} /></button>
+                <div className="w-px h-5 bg-slate-700"></div>
+                <button onClick={() => { setCurrentSlide(0); setIsPlaying(true); }} className="p-2 text-slate-400 hover:text-white transition-colors" title="重新播放"><Icon name="RotateCcw" size={20} /></button>
+                <button onClick={() => setIsPlaying(!isPlaying)} className="w-12 h-12 bg-indigo-500 text-white rounded-full flex items-center justify-center hover:scale-105 transition-transform shadow-lg">
+                  <Icon name={isPlaying ? "Pause" : "Play"} size={20} />
+                </button>
+                <button onClick={() => setIsInternalFullScreen(true)} className="p-2 text-slate-400 hover:text-white transition-colors" title="全螢幕模式"><Icon name="Maximize" size={20} /></button>
+                <button onClick={handleDownloadAllJPGs} className="p-2 text-emerald-400 hover:text-emerald-300 transition-colors" title="匯出所有頁面為 JPG"><Icon name="Images" size={20} /></button>
+                <button onClick={() => setShowDownloadModal(true)} className="p-2 text-indigo-400 hover:text-indigo-300 transition-colors" title="下載說明"><Icon name="Download" size={20} /></button>
+              </div>
+
+              {/* 16:9 雙畫面拼接容器 */}
+              <div id="export-container" className="w-full aspect-video max-w-[1200px] mx-auto shadow-2xl rounded-lg overflow-hidden shrink-0 relative bg-black border border-slate-700 flex">
+                {slides.map((combinedSlide, idx) => (
+                  <div 
+                    key={idx}
+                    className={`absolute inset-0 transition-opacity duration-1000 flex ${currentSlide === idx ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}
+                  >
+                    {/* 左班級 */}
+                    <div className="w-1/2 h-full relative" style={{ background: classesData[0].theme.bg }}>
+                       {renderHalfSlide(combinedSlide.left, classesData[0].theme, idx, 'left')}
+                    </div>
+                    
+                    {/* 中間分隔線，增加質感 */}
+                    <div className="w-[2px] h-full bg-black/10 absolute left-1/2 top-0 transform -translate-x-1/2 z-30"></div>
+                    
+                    {/* 右班級 */}
+                    <div className="w-1/2 h-full relative" style={{ background: classesData[1].theme.bg }}>
+                       {renderHalfSlide(combinedSlide.right, classesData[1].theme, idx, 'right')}
+                    </div>
+                  </div>
+                ))}
+                
+                {/* 底部雙進度條 */}
+                <div className="absolute bottom-0 left-0 w-full h-1.5 flex z-50" data-html2canvas-ignore="true">
+                  <div className="w-1/2 h-full bg-slate-900/10 relative">
+                    <div className={`absolute top-0 left-0 h-full ${classesData[0].theme.deco} transition-all duration-300`} style={{ width: `${((currentSlide + 1) / slides.length) * 100}%` }}></div>
+                  </div>
+                  <div className="w-1/2 h-full bg-slate-900/10 relative">
+                    <div className={`absolute top-0 left-0 h-full ${classesData[1].theme.deco} transition-all duration-300`} style={{ width: `${((currentSlide + 1) / slides.length) * 100}%` }}></div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="text-slate-500 text-xs font-mono tracking-widest uppercase pb-6 flex items-center gap-2">
+                <Icon name="Maximize" size={12} className="opacity-50" />
+                16:9 Ultra Wide Panorama
+              </div>
+            </div>
+          )}
+
+          {/* 下載提示彈窗 */}
+          {showDownloadModal && (
+            <div className="fixed inset-0 bg-black/80 z-[9999] flex items-center justify-center p-4 animate-in">
+              <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl relative text-slate-800">
+                <button onClick={() => setShowDownloadModal(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-800 transition-colors"><Icon name="X" size={24}/></button>
+                <div className="text-center mb-6">
+                  <div className="w-16 h-16 bg-indigo-100 text-indigo-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Icon name="Info" size={32} />
+                  </div>
+                  <h2 className="text-2xl font-black">匯出 16:9 寬螢幕檔案</h2>
+                </div>
+                <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 text-sm space-y-5">
+                  <div>
+                    <p className="font-bold text-slate-800 mb-2 text-base flex items-center gap-2">
+                      <span className="text-emerald-500"><Icon name="Images" size={16}/></span> 匯出完整 JPG 圖檔
+                    </p>
+                    <p className="text-slate-600 pl-6 leading-relaxed">點擊控制列的 <span className="font-bold text-slate-800">綠色圖片按鈕</span>，系統會自動將目前拼好的雙畫面，以極高畫質逐頁下載為 16:9 JPG 圖片。</p>
+                  </div>
+                  <hr className="border-slate-200" />
+                  <div>
+                    <p className="font-bold text-slate-800 mb-2 text-base flex items-center gap-2">
+                      <span className="text-indigo-500"><Icon name="Maximize" size={16}/></span> 錄製動態進場影片
+                    </p>
+                    <ol className="list-decimal pl-6 space-y-2 text-slate-600 leading-relaxed">
+                      <li>點擊播放器右上角的 <span className="font-bold text-slate-800">全螢幕按鈕</span>。</li>
+                      <li>開啟您電腦的高畫質螢幕錄影：
+                        <div className="mt-2 space-y-1 bg-white p-2 rounded border border-slate-100 shadow-sm text-xs">
+                          <div>🪟 Windows: <kbd className="bg-slate-100 border border-slate-300 rounded px-1 shadow-sm font-sans font-bold">Win</kbd> + <kbd className="bg-slate-100 border border-slate-300 rounded px-1 shadow-sm font-sans font-bold">Alt</kbd> + <kbd className="bg-slate-100 border border-slate-300 rounded px-1 shadow-sm font-sans font-bold">R</kbd></div>
+                          <div>🍎 Mac: <kbd className="bg-slate-100 border border-slate-300 rounded px-1 shadow-sm font-sans font-bold">Cmd</kbd> + <kbd className="bg-slate-100 border border-slate-300 rounded px-1 shadow-sm font-sans font-bold">Shift</kbd> + <kbd className="bg-slate-100 border border-slate-300 rounded px-1 shadow-sm font-sans font-bold">5</kbd></div>
+                        </div>
+                      </li>
+                    </ol>
+                  </div>
+                </div>
+                <button onClick={() => setShowDownloadModal(false)} className="w-full mt-6 bg-indigo-600 text-white py-3.5 rounded-xl font-bold text-lg hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200">
+                  了解，關閉視窗
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* 全螢幕模式 (16:9) */}
+          {isInternalFullScreen && (
+            <div className="fixed inset-0 bg-black z-[999] flex items-center justify-center animate-in duration-300">
+              <button 
+                onClick={() => setIsInternalFullScreen(false)}
+                className="absolute top-6 right-6 p-4 bg-white/10 hover:bg-white/25 rounded-full text-white transition-colors z-[1001]"
+                title="退出全螢幕"
+              >
+                <Icon name="X" size={28} />
+              </button>
+              
+              <div 
+                className="relative shadow-2xl overflow-hidden w-full aspect-video max-h-screen bg-black flex" 
+                style={{ margin: 'auto' }}
+              >
+                {slides.map((combinedSlide, idx) => (
+                  <div 
+                    key={idx}
+                    className={`absolute inset-0 transition-opacity duration-1000 flex ${currentSlide === idx ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}
+                  >
+                    <div className="w-1/2 h-full relative" style={{ background: classesData[0].theme.bg }}>
+                       {renderHalfSlide(combinedSlide.left, classesData[0].theme, idx, 'left')}
+                    </div>
+                    <div className="w-[2px] h-full bg-black/10 absolute left-1/2 top-0 transform -translate-x-1/2 z-30"></div>
+                    <div className="w-1/2 h-full relative" style={{ background: classesData[1].theme.bg }}>
+                       {renderHalfSlide(combinedSlide.right, classesData[1].theme, idx, 'right')}
+                    </div>
+                  </div>
+                ))}
+                
+                <div className="absolute bottom-0 left-0 w-full h-1.5 flex z-50">
+                  <div className="w-1/2 h-full bg-slate-900/10 relative">
+                    <div className={`absolute top-0 left-0 h-full ${classesData[0].theme.deco} transition-all duration-300`} style={{ width: `${((currentSlide + 1) / slides.length) * 100}%` }}></div>
+                  </div>
+                  <div className="w-1/2 h-full bg-slate-900/10 relative">
+                    <div className={`absolute top-0 left-0 h-full ${classesData[1].theme.deco} transition-all duration-300`} style={{ width: `${((currentSlide + 1) / slides.length) * 100}%` }}></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
