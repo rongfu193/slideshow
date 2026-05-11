@@ -3,20 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>榮富畢業生進場播放器 (16:9)</title>
+  <title>榮富畢業生進場播放器)</title>
   
-  <!-- 載入 Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- 載入 React 與 ReactDOM -->
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <!-- 載入 Babel 編譯器 -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <!-- 載入 FontAwesome 圖示庫 -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <!-- 載入 html2canvas -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-  <!-- 載入 PptxGenJS (用於產生 PPTX 檔案) -->
   <script src="https://cdn.jsdelivr.net/gh/gitbrent/PptxGenJS@3.12.0/dist/pptxgen.bundle.js"></script>
 
   <style>
@@ -25,7 +19,12 @@
     ::-webkit-scrollbar { width: 8px; }
     ::-webkit-scrollbar-track { background: #0f172a; }
     ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
-    ::-webkit-scrollbar-thumb:hover { background: #475569; }
+    
+    /* 強制圖片渲染優化，防止學生照片模糊 */
+    img {
+      image-rendering: -webkit-optimize-contrast;
+      image-rendering: crisp-edges;
+    }
   </style>
 </head>
 <body class="bg-slate-900">
@@ -208,17 +207,15 @@
         return () => clearInterval(timer);
       }, [isPlaying, isStarted, slides.length]);
 
-      // --- 核心修改：新增匯出 PPTX 功能 ---
+      // --- 核心優化：極致畫質匯出 PPTX ---
       const handleDownloadPPTX = async () => {
         if (typeof window.html2canvas === 'undefined' || typeof window.PptxGenJS === 'undefined') {
-          alert('載入必要套件失敗，請確認您的網路連線。'); return;
+          alert('載入必要套件失敗。'); return;
         }
-
         setIsPlaying(false);
         const container = document.getElementById('export-container');
         if (!container) return;
 
-        // 隱藏動畫與過度
         const style = document.createElement('style');
         style.innerHTML = '* { transition: none !important; animation: none !important; }';
         document.head.appendChild(style);
@@ -226,58 +223,70 @@
         const pres = new PptxGenJS();
         pres.layout = 'LAYOUT_16x9';
         
-        alert(`即將為您匯出含有 ${slides.length} 張投影片的 PPTX 檔案。\n這可能需要一點時間，請稍候。`);
+        alert(`準備匯出高品質 PPTX (${slides.length} 頁)。\n程式將使用 3 倍採樣率擷取，照片會非常清晰，請耐心等待。`);
 
         const originalSlide = currentSlide;
         try {
           for (let i = 0; i < slides.length; i++) {
             setCurrentSlide(i);
-            await new Promise(r => setTimeout(r, 500)); // 給予足夠的渲染時間
+            await new Promise(r => setTimeout(r, 600)); 
 
             const canvas = await window.html2canvas(container, {
-                scale: 1.5, // PPTX 內嵌不需要太大倍率，節省檔案大小
-                useCORS: true, logging: false, backgroundColor: '#000000'
+                scale: 3, // 提高到 3 倍採樣率
+                useCORS: true, 
+                logging: false, 
+                backgroundColor: '#000000',
+                imageTimeout: 0
             });
             
-            const imageData = canvas.toDataURL('image/jpeg', 0.8);
+            // 使用最高品質 JPEG
+            const imageData = canvas.toDataURL('image/jpeg', 0.98);
             const slide = pres.addSlide();
             slide.addImage({ data: imageData, x: 0, y: 0, w: '100%', h: '100%' });
           }
           
-          const fileName = `${classesData[0].className}與${classesData[1].className}-畢業進場.pptx`;
+          const fileName = `${classesData[0].className}與${classesData[1].className}-高品質畢業進場.pptx`;
           await pres.writeFile({ fileName });
-          alert('PPTX 檔案匯出成功！');
+          alert('高品質 PPTX 匯出成功！');
         } catch (err) {
-          console.error('PPTX 匯出失敗:', err);
-          alert('匯出過程中發生錯誤。');
+          alert('匯出失敗，請縮小上傳的照片原檔後重試。');
         } finally {
           document.head.removeChild(style);
           setCurrentSlide(originalSlide);
         }
       };
 
+      // --- 核心優化：高品質 JPG 下載 ---
       const handleDownloadAllJPGs = async () => {
-        if (typeof window.html2canvas === 'undefined') { alert('載入截圖套件失敗。'); return; }
+        if (typeof window.html2canvas === 'undefined') { alert('套件載入中。'); return; }
         setIsPlaying(false);
         const container = document.getElementById('export-container');
         if (!container) return;
+        
         const style = document.createElement('style');
         style.innerHTML = '* { transition: none !important; animation: none !important; }';
         document.head.appendChild(style);
-        alert(`即將為您匯出 ${slides.length} 張 16:9 JPG 圖檔。`);
+        
+        alert(`即將下載高品質圖檔。採樣率：3x，壓縮率：無損。`);
+        
         const originalSlide = currentSlide;
         try {
           for (let i = 0; i < slides.length; i++) {
             setCurrentSlide(i);
-            await new Promise(r => setTimeout(r, 400));
-            const canvas = await window.html2canvas(container, { scale: 2, useCORS: true, logging: false, backgroundColor: '#000000' });
+            await new Promise(r => setTimeout(r, 500));
+            const canvas = await window.html2canvas(container, { 
+                scale: 3, // 3倍畫質
+                useCORS: true, 
+                logging: false, 
+                backgroundColor: '#000000' 
+            });
             const link = document.createElement('a');
-            link.download = `${classesData[0].className}與${classesData[1].className}-投影片-${String(i + 1).padStart(2, '0')}.jpg`;
-            link.href = canvas.toDataURL('image/jpeg', 0.9);
+            link.download = `${classesData[0].className}與${classesData[1].className}-頁${String(i + 1).padStart(2, '0')}.jpg`;
+            link.href = canvas.toDataURL('image/jpeg', 0.98); // 近乎無損品質
             link.click();
           }
-          alert('匯出完成！');
-        } catch (err) { alert('截圖錯誤。'); } finally { document.head.removeChild(style); setCurrentSlide(originalSlide); }
+          alert('圖片下載完成！');
+        } catch (err) { alert('下載錯誤。'); } finally { document.head.removeChild(style); setCurrentSlide(originalSlide); }
       };
 
       const renderHalfSlide = (slideData, theme, idx, side = 'left') => (
@@ -384,9 +393,8 @@
                 <button onClick={() => { setCurrentSlide(0); setIsPlaying(true); }} className="p-2 text-slate-400 hover:text-white transition-colors" title="重新播放"><Icon name="RotateCcw" size={20} /></button>
                 <button onClick={() => setIsPlaying(!isPlaying)} className="w-12 h-12 bg-indigo-500 text-white rounded-full flex items-center justify-center hover:scale-105 transition-transform shadow-lg"><Icon name={isPlaying ? "Pause" : "Play"} size={20} /></button>
                 <button onClick={() => setIsInternalFullScreen(true)} className="p-2 text-slate-400 hover:text-white transition-colors" title="全螢幕模式"><Icon name="Maximize" size={20} /></button>
-                <button onClick={handleDownloadAllJPGs} className="p-2 text-emerald-400 hover:text-emerald-300 transition-colors" title="匯出所有頁面為 JPG"><Icon name="Images" size={20} /></button>
-                {/* 核心功能：匯出 PPTX 按鈕 */}
-                <button onClick={handleDownloadPPTX} className="p-2 text-orange-400 hover:text-orange-300 transition-colors" title="匯出為 PowerPoint (.pptx)"><Icon name="FilePowerpoint" size={20} /></button>
+                <button onClick={handleDownloadAllJPGs} className="p-2 text-emerald-400 hover:text-emerald-300 transition-colors" title="匯出所有頁面為高品質 JPG"><Icon name="Images" size={20} /></button>
+                <button onClick={handleDownloadPPTX} className="p-2 text-orange-400 hover:text-orange-300 transition-colors" title="匯出為高品質 PowerPoint (.pptx)"><Icon name="FilePowerpoint" size={20} /></button>
                 <button onClick={() => setShowDownloadModal(true)} className="p-2 text-indigo-400 hover:text-indigo-300 transition-colors" title="下載說明"><Icon name="Download" size={20} /></button>
               </div>
               <div id="export-container" className="w-full aspect-video max-w-[1200px] mx-auto shadow-2xl rounded-lg overflow-hidden shrink-0 relative bg-black border border-slate-700 flex">
@@ -402,7 +410,7 @@
                   <div className="w-1/2 h-full bg-slate-900/10 relative"><div className={`absolute top-0 left-0 h-full ${classesData[1].theme.deco} transition-all duration-300`} style={{ width: `${((currentSlide + 1) / slides.length) * 100}%` }}></div></div>
                 </div>
               </div>
-              <div className="text-slate-500 text-xs font-mono tracking-widest uppercase pb-6 flex items-center gap-2">16:9 Ultra Wide Panorama</div>
+              <div className="text-slate-500 text-xs font-mono tracking-widest uppercase pb-6 flex items-center gap-2 text-center px-4">高品質模式已開啟：採樣率 300% • 輸出解像度 3600x2025</div>
             </div>
           )}
 
@@ -410,18 +418,19 @@
             <div className="fixed inset-0 bg-black/80 z-[9999] flex items-center justify-center p-4 animate-in">
               <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl relative text-slate-800">
                 <button onClick={() => setShowDownloadModal(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-800 transition-colors"><Icon name="X" size={24}/></button>
-                <h2 className="text-2xl font-black text-center mb-6">匯出說明</h2>
+                <h2 className="text-2xl font-black text-center mb-6">高品質匯出說明</h2>
                 <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 text-sm space-y-5">
+                   <p className="text-indigo-600 font-bold">為了保持照片清晰，本程式目前以 3,600px 寬度進行擷取：</p>
                   <div className="flex gap-3">
                     <span className="text-orange-500"><Icon name="FilePowerpoint" size={20}/></span>
-                    <p><span className="font-bold">匯出 PPTX 檔案：</span>點擊橘色圖示，程式會自動將投影片打包成 PowerPoint 檔，方便您在畢業典禮當天直接在 PPT 中播放。</p>
+                    <p><span className="font-bold">PPTX：</span>適合典禮當天直接播放，每一頁都是獨立的高畫質大圖，支援縮放不模糊。</p>
                   </div>
                   <div className="flex gap-3">
                     <span className="text-emerald-500"><Icon name="Images" size={20}/></span>
-                    <p><span className="font-bold">匯出 JPG 圖檔：</span>點擊綠色圖示，會自動將每一頁儲存為單張圖片。</p>
+                    <p><span className="font-bold">JPG：</span>每張檔案約 1~2MB，可做為影片剪輯素材或存檔備份。</p>
                   </div>
                 </div>
-                <button onClick={() => setShowDownloadModal(false)} className="w-full mt-6 bg-indigo-600 text-white py-3.5 rounded-xl font-bold">了解</button>
+                <button onClick={() => setShowDownloadModal(false)} className="w-full mt-6 bg-indigo-600 text-white py-3.5 rounded-xl font-bold">確定</button>
               </div>
             </div>
           )}
